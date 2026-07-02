@@ -1,0 +1,10 @@
+{
+  "name": "creche-finder",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server $PORT"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

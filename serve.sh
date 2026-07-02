@@ -1,0 +1,10 @@
+#!/bin/bash
+PORT="${1:-8080}"
+echo "🌐 Serveur démarré sur http://localhost:$PORT"
+echo ""
+echo "📡 Pour exposer avec ngrok (si installé) :"
+echo "   ngrok http $PORT"
+echo ""
+echo "📂 App : http://localhost:$PORT"
+echo "📦 Quitter : Ctrl+C"
+python3 -m http.server "$PORT"

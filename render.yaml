@@ -1,0 +1,5 @@
+services:
+  - type: static
+    name: creche-finder
+    buildCommand: ""
+    publishDir: .

@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Ma Recherche de Crèche</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --bg:#f4f6f9; --surface:#fff; --primary:#4a90d9; --primary-dark:#357abd;
+  --danger:#e74c3c; --success:#27ae60; --warning:#f39c12; --text:#2c3e50;
+  --text-light:#7f8c8d; --border:#e0e4e8; --shadow:0 2px 8px rgba(0,0,0,0.08);
+  --radius:10px; --radius-sm:6px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+button{cursor:pointer;border:none;font-family:inherit;font-size:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit}
+a{color:var(--primary)}
+
+header{
+  background:var(--surface);padding:8px 12px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  display:flex;align-items:center;gap:6px;z-index:1000;position:relative;
+}
+header h1{font-size:14px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:4px;margin-right:auto}
+
+.btn{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:5px 10px;border-radius:var(--radius-sm);
+  font-weight:500;font-size:11px;transition:all 0.15s;
+  background:var(--primary);color:#fff;white-space:nowrap;
+}
+.btn:hover{background:var(--primary-dark)}
+.btn-outline{background:transparent;color:var(--primary);border:1.5px solid var(--primary)}
+.btn-outline:hover{background:var(--primary);color:#fff}
+.btn-success{background:var(--success)}
+.btn-success:hover{background:#219a52}
+.btn-xs{padding:2px 6px;font-size:10px;border-radius:4px}
+.btn-sm{padding:3px 8px;font-size:11px}
+.btn-danger{background:transparent;color:var(--danger);border:1.5px solid var(--danger)}
+.btn-danger:hover{background:var(--danger);color:#fff}
+
+.tabs{
+  display:flex;background:var(--surface);
+  border-bottom:2px solid var(--border);padding:0 12px;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+}
+.tab{
+  padding:8px 12px;font-size:11px;font-weight:500;
+  color:var(--text-light);background:none;white-space:nowrap;
+  border-bottom:2px solid transparent;margin-bottom:-2px;
+  transition:all 0.15s;
+}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tab:hover{color:var(--primary)}
+
+.panel{display:none;height:calc(100vh - 96px);overflow-y:auto}
+.panel.active{display:block}
+
+/* ── MAP ── */
+#map{height:100%;width:100%}
+.map-panel{position:relative;padding:0}
+.map-controls{
+  position:absolute;top:10px;right:10px;z-index:1000;
+  display:flex;flex-direction:column;gap:4px;
+}
+.map-controls .btn{font-size:10px;padding:4px 8px;box-shadow:var(--shadow)}
+
+/* custom home icon */
+.home-icon{background:none;border:none}
+.home-icon i{font-size:22px;line-height:1}
+
+/* ── PIPELINE ── */
+.pipeline-panel{padding:8px}
+.pipeline-empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:40vh;color:var(--text-light);font-size:14px;text-align:center;gap:8px;
+}
+.pipeline-empty .big-icon{font-size:48px;opacity:0.3}
+.pipeline{display:flex;gap:8px;overflow-x:auto;padding:4px 0 12px;min-height:50vh}
+.pipeline::-webkit-scrollbar{height:5px}
+.pipeline::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.column{
+  min-width:190px;max-width:230px;width:210px;flex-shrink:0;
+  background:var(--bg);border-radius:var(--radius);
+  padding:8px;border:1px solid var(--border);
+}
+.column-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:6px;font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:0.4px;
+  color:var(--text-light);padding-bottom:5px;border-bottom:2px solid var(--border);
+}
+.column-header .count{
+  background:var(--border);padding:1px 7px;border-radius:10px;font-size:10px;
+}
+.card{
+  background:var(--surface);border-radius:var(--radius-sm);
+  padding:8px 10px;margin-bottom:6px;box-shadow:var(--shadow);
+  cursor:pointer;transition:all 0.12s;border-left:3px solid var(--primary);
+  position:relative;user-select:none;
+}
+.card:hover{box-shadow:0 3px 10px rgba(0,0,0,0.1);transform:translateY(-1px)}
+.card:active{transform:scale(0.98)}
+.card-title{font-weight:600;font-size:13px;margin-bottom:3px}
+.card-sub{font-size:10px;color:var(--text-light);font-weight:400}
+.card-meta{font-size:11px;color:var(--text-light);line-height:1.4}
+.stage-0{border-left-color:#3498db}
+.stage-1{border-left-color:#f39c12}
+.stage-2{border-left-color:#e74c3c}
+.stage-3{border-left-color:#27ae60}
+.stage-4{border-left-color:#9b59b6}
+.stage-5{border-left-color:#1abc9c}
+.stage-6{border-left-color:#f1c40f}
+.stage-7{border-left-color:#95a5a6}
+
+/* ── LISTE ── */
+.liste-panel{padding:8px}
+.liste-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
+.liste-bar input{flex:1;min-width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);outline:none;font-size:12px;background:var(--surface)}
+.liste-bar select{padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:12px;background:var(--surface);outline:none;color:var(--text)}
+.liste-bar .count{font-size:11px;color:var(--text-light)}
+.liste-table{
+  width:100%;border-collapse:collapse;font-size:12px;
+  background:var(--surface);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
+}
+.liste-table th{
+  background:var(--bg);font-weight:600;font-size:10px;text-transform:uppercase;
+  color:var(--text-light);padding:8px 10px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;
+}
+.liste-table td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.liste-table tr:hover{background:#f8faff}
+.liste-table .contact-cell{font-size:11px;line-height:1.4}
+.liste-table .dist{font-size:10px;color:var(--text-light);white-space:nowrap}
+
+/* ── UPLOAD ── */
+.upload-panel{padding:16px}
+.drop-zone{
+  border:2px dashed var(--border);border-radius:var(--radius);
+  padding:40px 20px;text-align:center;transition:all 0.2s;
+  background:var(--surface);cursor:pointer;
+}
+.drop-zone.dragover{border-color:var(--primary);background:#f0f6ff}
+.drop-zone .icon{font-size:36px;opacity:0.3;margin-bottom:8px}
+.drop-zone p{font-size:13px;color:var(--text-light)}
+.drop-zone .sub{font-size:11px;color:var(--text-light);margin-top:4px}
+.upload-result{margin-top:12px;font-size:13px;padding:10px;border-radius:var(--radius-sm);background:var(--surface);display:none}
+
+/* ── MODAL ── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,0.35);z-index:2000;
+  align-items:flex-start;justify-content:center;
+  padding:16px 8px;overflow-y:auto;
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:var(--surface);border-radius:var(--radius);
+  width:100%;max-width:520px;padding:20px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.15);
+  margin-top:10px;position:relative;
+}
+.modal h2{font-size:16px;margin-bottom:12px}
+.modal-close{
+  position:absolute;top:12px;right:14px;
+  background:none;font-size:20px;color:var(--text-light);padding:4px;line-height:1;
+}
+.form-group{margin-bottom:10px}
+.form-group label{display:block;font-size:12px;font-weight:500;margin-bottom:3px;color:var(--text-light)}
+.form-group input,.form-group textarea,.form-group select{
+  width:100%;padding:7px 10px;border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);outline:none;transition:border 0.15s;
+  background:var(--bg);font-size:13px;
+}
+.form-group input:focus,.form-group textarea:focus{border-color:var(--primary);background:#fff}
+.form-group textarea{min-height:50px;resize:vertical;font-size:12px}
+
+/* ── Script Panel ── */
+.script-box{
+  background:#fffde7;border:1px solid #fff176;border-radius:var(--radius);
+  padding:14px;margin-bottom:10px;font-size:13px;line-height:1.6;
+}
+
+/* ── Distance badge ── */
+.home-info{
+  font-size:10px;color:var(--text-light);display:flex;align-items:center;gap:4px;
+  background:var(--bg);padding:3px 8px;border-radius:12px;white-space:nowrap;
+}
+
+/* ── Leaflet tooltip override ── */
+.leaflet-popup-content{margin:8px 10px;font-size:12px;line-height:1.4}
+.leaflet-popup-content strong{font-size:13px}
+.popup-contact{font-size:11px;color:var(--text-light);margin:3px 0}
+.popup-actions{margin-top:6px;display:flex;gap:4px}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+@media(max-width:480px){
+  .column{min-width:160px;max-width:200px}
+  .map-controls{top:8px;right:8px}
+  .map-controls .btn{font-size:9px;padding:3px 6px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>👶 Crèches</h1>
+  <span class="home-info" id="homeInfo">📍 Domicile non défini</span>
+  <button class="btn btn-sm" onclick="geolocateMe()">📍 Ma position</button>
+  <button class="btn btn-outline btn-sm" onclick="exportData()">📥</button>
+</header>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" data-tab="carte">🗺️ Carte</button>
+  <button class="tab" data-tab="pipeline">📋 Pipeline</button>
+  <button class="tab" data-tab="liste">📑 Liste</button>
+  <button class="tab" data-tab="upload">📤 Importer</button>
+</div>
+
+<!-- MAP -->
+<div class="panel active" id="panel-carte">
+  <div class="map-panel" style="height:100%">
+    <div id="map"></div>
+    <div class="map-controls">
+      <button class="btn btn-sm" onclick="homeClickMode()" id="homeBtn">🏠 Placer domicile</button>
+      <button class="btn btn-sm" onclick="fitAll()">🔍 Toutes</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIPELINE -->
+<div class="panel" id="panel-pipeline">
+  <div class="pipeline-panel">
+    <div id="pipelineContent"></div>
+  </div>
+</div>
+
+<!-- LISTE -->
+<div class="panel" id="panel-liste">
+  <div class="liste-panel">
+    <div class="liste-bar">
+      <input type="text" id="listSearch" placeholder="🔍 Rechercher..." oninput="renderList()">
+      <select id="listTypeFilter" onchange="renderList()">
+        <option value="">Tous types</option>
+        <option value="Crèche municipale">Crèche municipale</option>
+        <option value="Crèche">Crèche associative</option>
+        <option value="Micro-crèche">Micro-crèche</option>
+        <option value="Halte-garderie">Halte-garderie</option>
+        <option value="Assistant maternel">Assistant maternel</option>
+      </select>
+      <button class="btn btn-sm btn-outline" onclick="sortByDist()" id="sortBtn">📏 Trier par distance</button>
+      <span class="count" id="listCount"></span>
+    </div>
+    <div id="listTableWrap" style="overflow-x:auto"></div>
+  </div>
+</div>
+
+<!-- UPLOAD -->
+<div class="panel" id="panel-upload">
+  <div class="upload-panel">
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="icon">📁</div>
+      <p><strong>Déposez vos fichiers JSON ici</strong></p>
+      <p class="sub">ou cliquez pour choisir — plusieurs fichiers acceptés</p>
+    </div>
+    <input type="file" id="fileInput" accept=".json" multiple style="display:none" onchange="handleFiles(this.files)">
+    <div class="upload-result" id="uploadResult"></div>
+    <div style="margin-top:16px">
+      <p style="font-size:12px;color:var(--text-light)">📌 Format attendu : tableau JSON d'établissements avec les champs <code>name</code>, <code>type</code>, <code>phone</code>, <code>email</code>, <code>address</code>, <code>lat</code>, <code>lng</code>, <code>website</code>, <code>notes</code></p>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script src="creches-rennes.js"></script>
+<script>
+// ── DATA ──
+const STAGES = [
+  { id:'a_contacter', label:'📞 1. À contacter', color:'#3498db' },
+  { id:'contacte', label:'📞 2. Contacté', color:'#f39c12' },
+  { id:'relance', label:'🔄 3. Relance', color:'#e74c3c' },
+  { id:'disponibilite', label:'✅ 4. Disponibilité', color:'#27ae60' },
+  { id:'visite', label:'🏠 5. Visite', color:'#9b59b6' },
+  { id:'inscription', label:'📝 6. Inscription', color:'#1abc9c' },
+  { id:'valide', label:'⭐ 7. Validé', color:'#f1c40f' },
+  { id:'indisponible', label:'❌ Indisponible', color:'#95a5a6' },
+]
+
+// allCreches: complete dataset from JSON (never deleted)
+// pipeline: subset that user has contacted
+let allCreches = []
+let pipeline = []
+
+// Home location
+let homeLat = null, homeLng = null
+
+// Map state
+let map = null, homeMarker = null, crecheMarkers = []
+let placingHome = false
+
+// ── INIT ──
+function init(){
+  loadFromStorage()
+  loadSeedData()
+  computeDistances()
+  initMap()
+  initTabs()
+  renderPipeline()
+  renderList()
+}
+
+function loadFromStorage(){
+  try{
+    const a = localStorage.getItem('creches_all')
+    if(a) allCreches = JSON.parse(a)
+    const p = localStorage.getItem('creches_pipeline')
+    if(p) pipeline = JSON.parse(p)
+    const h = localStorage.getItem('creches_home')
+    if(h){const o=JSON.parse(h);homeLat=o.lat;homeLng=o.lng}
+  }catch(e){}
+}
+
+function saveAll(){localStorage.setItem('creches_all',JSON.stringify(allCreches))}
+function savePipeline(){localStorage.setItem('creches_pipeline',JSON.stringify(pipeline))}
+function saveHome(){
+  if(homeLat!=null) localStorage.setItem('creches_home',JSON.stringify({lat:homeLat,lng:homeLng}))
+}
+
+function loadSeedData(){
+  if(allCreches.length>0) return
+  // Try fetch, fallback to inline JS var
+  fetch('/creches-rennes.json').then(r=>r.json()).then(d=>{
+    if(d&&d.length){allCreches=d;saveAll();computeDistances();renderMarkers();renderList()}
+  }).catch(()=>{
+    if(typeof CRECHES_DATA!=='undefined'&&CRECHES_DATA.length){
+      allCreches=CRECHES_DATA;saveAll();computeDistances();renderMarkers();renderList()
+    }
+  })
+}
+
+// ── MAP ──
+function initMap(){
+  map = L.map('map',{zoomControl:true,attributionControl:false}).setView([48.117,-1.677],13)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'© OpenStreetMap'
+  }).addTo(map)
+
+  // Home marker (if set)
+  if(homeLat!=null){
+    homeMarker = L.marker([homeLat,homeLng],{draggable:true,icon:homeIcon()}).addTo(map)
+    homeMarker.on('dragend',function(e){
+      const p = e.target.getLatLng()
+      homeLat=p.lat;homeLng=p.lng;saveHome();updateHomeInfo();renderList()
+    })
+  }
+
+  // Render creche markers
+  renderMarkers()
+
+  // Click on map to place home
+  map.on('click',function(e){
+    if(placingHome){
+      setHome(e.latlng.lat,e.latlng.lng)
+      placingHome=false
+      document.getElementById('homeBtn').textContent='🏠 Placer domicile'
+      document.getElementById('homeBtn').className='btn btn-sm'
+    }
+  })
+}
+
+function homeIcon(){
+  return L.divIcon({
+    className:'home-icon',
+    html:'<span style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">🏠</span>',
+    iconSize:[32,32],iconAnchor:[16,28],popupAnchor:[0,-28]
+  })
+}
+
+function renderMarkers(){
+  // Clear old
+  crecheMarkers.forEach(m=>map.removeLayer(m))
+  crecheMarkers = []
+
+  allCreches.forEach(c=>{
+    if(!c.lat||!c.lng) return
+    const color = c.type==='Assistant maternel'?'#e74c3c':'#4a90d9'
+    const marker = L.circleMarker([c.lat,c.lng],{
+      radius:7,fillColor:color,color:'#fff',weight:2,opacity:1,fillOpacity:0.8
+    }).addTo(map)
+
+    // Tooltip on hover
+    const tip = `<strong>${escHtml(c.name)}</strong>` +
+      (c.phone ? `<br>📞 ${escHtml(c.phone)}` : '') +
+      (c.email ? `<br>✉️ ${escHtml(c.email)}` : '') +
+      (c.type ? `<br><em>${escHtml(c.type)}</em>` : '')
+    marker.bindTooltip(tip,{direction:'top',offset:[0,-8]})
+
+    // Popup on click
+    marker.on('click',function(){
+      const inPipeline = pipeline.some(p=>p.name===c.name)
+      let html = `<strong>${escHtml(c.name)}</strong>`
+      if(c.type) html += `<br><em>${escHtml(c.type)}</em>`
+      if(c.phone) html += `<div class="popup-contact">📞 ${escHtml(c.phone)}</div>`
+      if(c.email) html += `<div class="popup-contact">✉️ ${escHtml(c.email)}</div>`
+      if(c.address) html += `<div class="popup-contact">📍 ${escHtml(c.address)}</div>`
+      if(c.website) html += `<div class="popup-contact">🌐 <a href="${escHtml(c.website)}" target="_blank">${escHtml(c.website)}</a></div>`
+      if(c.distance!=null) html += `<div class="popup-contact">📏 ${fmtDist(c.distance)}</div>`
+
+      if(inPipeline){
+        html += `<div class="popup-actions"><span style="font-size:11px;color:var(--success)">✅ Dans le pipeline</span></div>`
+      }else{
+        html += `<div class="popup-actions"><button class="btn btn-xs" onclick="contacterFromMap('${escHtml(c.name).replace(/'/g,"\\'")}')">📞 Contacter → Pipeline</button></div>`
+      }
+      marker.bindPopup(html).openPopup()
+    })
+
+    crecheMarkers.push(marker)
+  })
+}
+
+function contacterFromMap(name){
+  const c = allCreches.find(x=>x.name===name)
+  if(!c||pipeline.some(p=>p.name===name)) return
+  pipeline.push({...c,stage:'a_contacter',contact_date:today(),hist:[]})
+  savePipeline()
+  renderPipeline()
+  renderList()
+  map.closePopup()
+  document.querySelector('[data-tab="pipeline"]').click()
+}
+
+function setHome(lat,lng){
+  homeLat=lat;homeLng=lng;saveHome();updateHomeInfo()
+  if(homeMarker) map.removeLayer(homeMarker)
+  homeMarker = L.marker([lat,lng],{draggable:true,icon:homeIcon()}).addTo(map)
+  homeMarker.on('dragend',function(e){
+    const p=e.target.getLatLng();homeLat=p.lat;homeLng=p.lng;saveHome();updateHomeInfo()
+  })
+  computeDistances()
+  renderMarkers()
+  renderList()
+}
+
+function updateHomeInfo(){
+  document.getElementById('homeInfo').textContent = homeLat!=null ? `📍 ${homeLat.toFixed(4)}, ${homeLng.toFixed(4)}` : '📍 Domicile non défini'
+}
+
+function geolocateMe(){
+  if(!navigator.geolocation){alert('Géolocalisation non disponible');return}
+  navigator.geolocation.getCurrentPosition(
+    p=>setHome(p.coords.latitude,p.coords.longitude),
+    ()=>alert('Impossible d\'obtenir la position. Utilisez "Placer domicile" pour cliquer sur la carte.')
+  )
+}
+
+function homeClickMode(){
+  placingHome=!placingHome
+  document.getElementById('homeBtn').textContent=placingHome?'📍 Cliquez sur la carte...':'🏠 Placer domicile'
+  document.getElementById('homeBtn').className=placingHome?'btn btn-sm btn-success':'btn btn-sm'
+}
+
+function fitAll(){
+  if(crecheMarkers.length){const g=L.featureGroup(crecheMarkers);map.fitBounds(g.getBounds().pad(0.1))}
+}
+
+function computeDistances(){
+  if(homeLat==null) return
+  allCreches.forEach(c=>{
+    if(c.lat&&c.lng) c.distance = dist(homeLat,homeLng,c.lat,c.lng)
+    else c.distance = null
+  })
+}
+
+// ── TABS ──
+function initTabs(){
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click',function(){
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'))
+      document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'))
+      this.classList.add('active')
+      document.getElementById('panel-'+this.dataset.tab).classList.add('active')
+      if(this.dataset.tab==='carte'&&map) setTimeout(()=>map.invalidateSize(),100)
+    })
+  })
+}
+
+// ── PIPELINE ──
+function renderPipeline(){
+  const el = document.getElementById('pipelineContent')
+  const scriptBtn = `<button class="btn btn-xs btn-outline" style="margin-bottom:6px" onclick="toggleScript()">📞 Script téléphonique</button>
+  <div id="scriptBox" style="display:none;background:#fffde7;border:1px solid #fff176;border-radius:var(--radius);padding:12px;margin-bottom:10px;font-size:12px;line-height:1.6">
+    <strong>Questions à poser :</strong><br>
+    1. Avez-vous des places disponibles pour septembre/octobre 2026 ?<br>
+    2. Acceptez-vous un accueil 2 jours/semaine (lundi, jeudi) ?<br>
+    3. Quels sont vos horaires d'accueil ?<br>
+    4. Quel est le tarif ? Est-ce la CMG ou tarif libre ?<br>
+    5. Y a-t-il une liste d'attente ? Quelle est la durée estimée ?<br>
+    6. Puis-je visiter les locaux ?<br>
+    7. Quels sont les documents nécessaires pour l'inscription ?
+  </div>`
+  if(pipeline.length===0){
+    el.innerHTML=scriptBtn+`
+      <div class="pipeline-empty">
+        <div class="big-icon">📭</div>
+        <div><strong>Pipeline vide</strong></div>
+        <div>Cliquez sur <strong>« Contacter »</strong> depuis la carte ou la liste<br>pour ajouter une crèche ici</div>
+      </div>`
+    return
+  }
+  let html = '<div class="pipeline">'
+  STAGES.forEach(s=>{
+    const items = pipeline.filter(c=>c.stage===s.id)
+    html += `<div class="column" style="border-top:2px solid ${s.color}">
+      <div class="column-header"><span>${s.label}</span><span class="count">${items.length}</span></div>`
+    items.forEach((c,ci)=>{
+      const stageIdx = STAGES.findIndex(x=>x.id===c.stage)
+      const prevStage = stageIdx>0?STAGES[stageIdx-1].id:null
+      const nextStage = stageIdx<STAGES.length-1?STAGES[stageIdx+1].id:null
+      html += `<div class="card stage-${stageIdx}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1;cursor:pointer" onclick="showDetail('${escHtml(c.name).replace(/'/g,"\\'")}')">
+            <div class="card-title">${escHtml(c.name)}</div>
+            <div class="card-sub">${escHtml(c.type||'')}</div>
+          </div>
+          <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px">
+            ${prevStage?`<button class="btn btn-xs" style="background:var(--bg);color:var(--text-light);padding:1px 4px" onclick="event.stopPropagation();setStage('${escHtml(c.name).replace(/'/g,"\\'")}','${prevStage}')" title="Étape précédente">◀</button>`:''}
+            ${nextStage?`<button class="btn btn-xs" style="background:var(--bg);color:var(--text-light);padding:1px 4px" onclick="event.stopPropagation();setStage('${escHtml(c.name).replace(/'/g,"\\'")}','${nextStage}')" title="Étape suivante">▶</button>`:''}
+          </div>
+        </div>
+        <div class="card-meta" style="cursor:pointer" onclick="showDetail('${escHtml(c.name).replace(/'/g,"\\'")}')">
+          ${c.phone?`<span class="badge-phone">📞 ${escHtml(c.phone)}</span>`:''}
+          ${c.email?`<span class="badge-email">✉️ ${escHtml(c.email)}</span>`:''}
+        </div>`
+      if(c.distance!=null) html += `<div class="card-meta" style="font-size:10px;margin-top:2px">📍 ${fmtDist(c.distance)}</div>`
+      html += `</div>`
+    })
+    html += '</div>'
+  })
+  html += '</div>'
+  el.innerHTML = html
+}
+
+// ── LISTE ──
+function renderList(){
+  computeDistances()
+
+  let items = [...allCreches]
+  const q = document.getElementById('listSearch').value.toLowerCase()
+  const t = document.getElementById('listTypeFilter').value
+  if(q) items = items.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.address||'').toLowerCase().includes(q))
+  if(t) items = items.filter(c=>c.type===t)
+
+  document.getElementById('listCount').textContent = `${items.length} établissements`
+
+  // Sort by distance if requested
+  const sortedByDist = document.getElementById('sortBtn').dataset.sorted==='1'
+  if(sortedByDist&&homeLat!=null){
+    items.sort((a,b)=>(a.distance??999)-(b.distance??999))
+  }
+
+  let html = '<table class="liste-table"><thead><tr><th>Nom</th><th>Type</th><th>Contact</th><th>Distance</th><th>Action</th></tr></thead><tbody>'
+  items.forEach(c=>{
+    const inPipeline = pipeline.some(p=>p.name===c.name)
+    html += `<tr>
+      <td><strong style="font-size:13px;cursor:pointer" onclick="showDetail('${escHtml(c.name).replace(/'/g,"\\'")}')">${escHtml(c.name)}</strong></td>
+      <td><span style="font-size:11px;color:var(--text-light)">${escHtml(c.type||'')}</span></td>
+      <td class="contact-cell">
+        ${c.phone?`📞 ${escHtml(c.phone)}`:'—'}
+        ${c.email?`<br>✉️ ${escHtml(c.email)}`:''}
+      </td>
+      <td class="dist">${c.distance!=null?fmtDist(c.distance):'—'}</td>
+      <td>${inPipeline
+        ?'<span style="font-size:11px;color:var(--success)">✅ Dans pipeline</span>'
+        :`<button class="btn btn-xs btn-success" onclick="contacterFromList('${escHtml(c.name).replace(/'/g,"\\'")}')">📞 Contacter</button>`
+      }</td>
+    </tr>`
+  })
+  html += '</tbody></table>'
+  document.getElementById('listTableWrap').innerHTML = html
+}
+
+function setStage(name,stageId){
+  const p = pipeline.find(x=>x.name===name)
+  if(!p) return
+  p.stage = stageId
+  savePipeline()
+  renderPipeline()
+  showDetail(name)
+}
+
+function toggleScript(){
+  const el = document.getElementById('scriptBox')
+  if(el) el.style.display = el.style.display==='none'?'block':'none'
+}
+
+function contacterFromList(name){
+  const c = allCreches.find(x=>x.name===name)
+  if(!c||pipeline.some(p=>p.name===name)) return
+  pipeline.push({...c,stage:'a_contacter',contact_date:today(),hist:[]})
+  savePipeline()
+  renderPipeline()
+  renderList()
+}
+
+function sortByDist(){
+  const btn = document.getElementById('sortBtn')
+  if(btn.dataset.sorted==='1'){
+    btn.dataset.sorted='0'
+    btn.textContent='📏 Trier par distance'
+    btn.className='btn btn-sm btn-outline'
+  }else{
+    btn.dataset.sorted='1'
+    btn.textContent='📏 Trié ✓'
+    btn.className='btn btn-sm btn-success'
+  }
+  renderList()
+}
+
+// ── DETAIL MODAL ──
+function showDetail(name){
+  const c = allCreches.find(x=>x.name===name)
+  if(!c) return
+  const p = pipeline.find(x=>x.name===name)
+  const data = p||c
+  const inPipeline = !!p
+
+  let html = `<button class="modal-close" onclick="closeModal()">✕</button>
+    <h2>${escHtml(c.name)}</h2>`
+
+  html += `<div class="form-group"><label>Type</label><input value="${escHtml(c.type||'')}" readonly></div>`
+  html += `<div class="form-group"><label>Adresse</label><input value="${escHtml(c.address||'')}" readonly></div>`
+
+  // Contact fields (editable)
+  const phone = data.phone||''
+  const email = data.email||''
+  const website = data.website||''
+  const notes = data.notes||''
+
+  html += `<div class="form-row">
+    <div class="form-group"><label>📞 Téléphone</label><input id="detailPhone" value="${escHtml(phone)}" placeholder="Ex: 02 99 00 00 00"></div>
+    <div class="form-group"><label>✉️ Email</label><input id="detailEmail" value="${escHtml(email)}" placeholder="email@exemple.fr"></div>
+  </div>`
+  html += `<div class="form-group"><label>🌐 Site web</label><input id="detailWeb" value="${escHtml(website)}" placeholder="https://..."></div>`
+
+  // Distance
+  if(c.distance!=null) html += `<div style="font-size:12px;color:var(--text-light);margin-bottom:8px">📍 ${fmtDist(c.distance)} du domicile</div>`
+
+  // Stage selector (only for pipeline items)
+  if(inPipeline){
+    html += `<div class="form-group"><label>📋 Étape</label>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">`
+    STAGES.forEach((s,i)=>{
+      const active = data.stage===s.id
+      html += `<button class="btn btn-xs ${active?'':'btn-outline'}" style="${active?`background:${s.color};border-color:${s.color}`:''}" onclick="setStage('${escHtml(c.name).replace(/'/g,"\\'")}','${s.id}')">${i+1}. ${s.label.replace(/^.\d+\s/,'')}</button>`
+    })
+    html += `</div></div>`
+  }
+
+  // Notes editable
+  html += `<div class="form-group"><label>Notes</label><textarea id="detailNotes" rows="3">${escHtml(notes)}</textarea></div>`
+
+  // History
+  if(data.hist&&data.hist.length>0){
+    html += '<div style="margin-top:8px"><h3 style="font-size:12px;color:var(--text-light);margin-bottom:4px">📜 Historique</h3>'
+    data.hist.forEach(h=>{
+      html += `<div style="padding:5px 8px;background:var(--bg);border-radius:4px;margin-bottom:3px;font-size:12px">
+        <span style="font-size:10px;color:var(--text-light)">${escHtml(h.date||'')}</span> — ${escHtml(h.text||'')}
+      </div>`
+    })
+    html += '</div>'
+  }
+
+  // Add note
+  html += `<div class="form-group" style="margin-top:8px">
+    <label>Ajouter une note</label>
+    <div style="display:flex;gap:4px">
+      <input id="noteInput" placeholder="Ex: Appelé, pas de réponse..." style="flex:1;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--radius-sm)">
+      <button class="btn btn-sm" onclick="addNote('${escHtml(c.name).replace(/'/g,"\\'")}')">➕</button>
+    </div>
+  </div>`
+
+  html += `<div class="form-actions" style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="saveDetail('${escHtml(c.name).replace(/'/g,"\\'")}')">💾 Enregistrer contact</button>
+    ${!inPipeline?`<button class="btn btn-sm btn-success" onclick="contacterFromDetail('${escHtml(c.name).replace(/'/g,"\\'")}')">📞 Ajouter au pipeline</button>`:''
+    }<button class="btn btn-sm btn-danger" onclick="closeModal()">Fermer</button>
+  </div>`
+
+  document.getElementById('modalContent').innerHTML = html
+  document.getElementById('modalOverlay').classList.add('open')
+}
+
+function saveDetail(name){
+  const phone = document.getElementById('detailPhone')?.value||''
+  const email = document.getElementById('detailEmail')?.value||''
+  const web = document.getElementById('detailWeb')?.value||''
+  const notes = document.getElementById('detailNotes')?.value||''
+
+  const c = allCreches.find(x=>x.name===name)
+  if(c){
+    c.phone=phone;c.email=email;c.website=web;c.notes=notes
+    saveAll()
+  }
+  const p = pipeline.find(x=>x.name===name)
+  if(p){
+    p.phone=phone;p.email=email;p.website=web;p.notes=notes
+    savePipeline()
+  }
+  renderMarkers()
+  renderPipeline()
+  renderList()
+  closeModal()
+}
+
+function contacterFromDetail(name){
+  const c = allCreches.find(x=>x.name===name)
+  if(!c||pipeline.some(p=>p.name===name)) return
+  pipeline.push({...c,stage:'a_contacter',contact_date:today(),hist:[]})
+  savePipeline()
+  renderPipeline()
+  renderList()
+  closeModal()
+}
+
+function addNote(name){
+  const text = document.getElementById('noteInput')?.value
+  if(!text) return
+  let p = pipeline.find(x=>x.name===name)
+  if(!p){
+    const c = allCreches.find(x=>x.name===name)
+    if(!c) return
+    p = {...c,stage:'a_contacter',contact_date:today(),hist:[]}
+    pipeline.push(p)
+  }
+  if(!p.hist) p.hist=[]
+  p.hist.push({date:today(),text})
+  savePipeline()
+  document.getElementById('noteInput').value=''
+  showDetail(name)
+}
+
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open')
+}
+
+// ── UPLOAD JSON ──
+const dropZone = document.getElementById('dropZone')
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('dragover')})
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('dragover'))
+dropZone.addEventListener('drop',function(e){
+  e.preventDefault();dropZone.classList.remove('dragover')
+  if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files)
+})
+
+function handleFiles(files){
+  let total=0,added=0,skipped=0
+  const result = document.getElementById('uploadResult')
+  result.style.display='block'
+
+  Array.from(files).forEach(file=>{
+    const reader = new FileReader()
+    reader.onload=function(e){
+      try{
+        const data = JSON.parse(e.target.result)
+        if(!Array.isArray(data)) throw new Error('Format JSON invalide, tableau attendu')
+        total += data.length
+        data.forEach(item=>{
+          if(!item.name) return
+          const exists = allCreches.some(c=>c.name===item.name)
+          if(!exists){
+            if(!item.stage) item.stage='a_contacter'
+            if(!item.contact_date) item.contact_date=''
+            if(!item.source) item.source='import'
+            allCreches.push(item)
+            added++
+          }else{
+            skipped++
+          }
+        })
+        saveAll()
+        renderMarkers()
+        renderList()
+        result.innerHTML = `<div style="color:var(--success)">✅ Fichier « ${file.name} » importé : ${data.length} établissements (${added} ajoutés, ${skipped} doublons ignorés)</div>`
+      }catch(err){
+        result.innerHTML = `<div style="color:var(--danger)">❌ Erreur dans « ${file.name} » : ${err.message}</div>`
+      }
+    }
+    reader.readAsText(file)
+  })
+}
+
+// ── EXPORT ──
+function exportData(){
+  const data = {allCreches,pipeline,home:homeLat!=null?{lat:homeLat,lng:homeLng}:null}
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'})
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'creches-backup.json'
+  a.click()
+}
+
+// ── HELPERS ──
+function escHtml(s){
+  if(s==null) return ''
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+function today(){
+  return new Date().toISOString().split('T')[0]
+}
+function dist(lat1,lng1,lat2,lng2){
+  const R=6371
+  const dLat=(lat2-lat1)*Math.PI/180
+  const dLng=(lng2-lng1)*Math.PI/180
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
+}
+function fmtDist(d){
+  if(d==null) return '—'
+  return d<1?`${Math.round(d*1000)} m`:d<10?`${d.toFixed(1)} km`:`${Math.round(d)} km`
+}
+
+// ── START ──
+init()
+</script>
+</body>
+</html>
